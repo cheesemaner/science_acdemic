@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>自定义导航网站</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            padding: 20px;
+        }
+        h1 {
+            text-align: center;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        .category {
+            margin-bottom: 20px;
+        }
+        .category-title {
+            font-size: 1.2em;
+            margin-bottom: 10px;
+        }
+        .link-list {
+            list-style: none;
+            padding-left: 0;
+        }
+        .link-list li {
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+        }
+        .link-list a {
+            text-decoration: none;
+            color: #3498db;
+            font-weight: bold;
+        }
+        .link-list a:hover {
+            text-decoration: underline;
+        }
+        .link-list button {
+            background-color: red;
+            color: white;
+            border: none;
+            cursor: pointer;
+            padding: 5px;
+            border-radius: 4px;
+        }
+        .add-form {
+            display: flex;
+            margin-top: 20px;
+        }
+        .add-form input, .add-form select, .add-form button {
+            padding: 10px;
+            margin-right: 10px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+        }
+        .add-form input {
+            flex: 1;
+        }
+        .add-form button {
+            background-color: #2ecc71;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        .add-form button:hover {
+            background-color: #27ae60;
+        }
+        @media (max-width: 600px) {
+            .container {
+                padding: 10px;
+            }
+            .add-form {
+                flex-direction: column;
+            }
+            .add-form input, .add-form select, .add-form button {
+                margin-bottom: 10px;
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>自定义导航网站</h1>
+
+        <!-- 分类导航展示区域 -->
+        <div id="categories" role="navigation" aria-label="Categories"></div>
+
+        <!-- 添加链接表单 -->
+        <form class="add-form" id="addForm" aria-label="Add Link">
+            <input type="text" id="linkName" placeholder="网站名称" aria-label="Link Name" required>
+            <input type="url" id="linkUrl" placeholder="网站URL" aria-label="Link URL" required>
+            <select id="categorySelect" aria-label="Select Category" required>
+                <option value="">选择分类</option>
+            </select>
+            <button type="submit" aria-label="Add Link">添加网站</button>
+        </form>
+
+        <!-- 添加分类表单 -->
+        <form class="add-form" id="addCategoryForm" aria-label="Add Category">
+            <input type="text" id="categoryName" placeholder="新分类名称" aria-label="Category Name" required>
+            <button type="submit" aria-label="Add Category">添加分类</button>
+        </form>
+    </div>
+
+    <script>
+        // 初始化数据
+        var categories = JSON.parse(localStorage.getItem('categories')) || {};
+
+        // 安全处理用户输入，防止XSS攻击
+        function sanitizeInput(input) {
+            const element = document.createElement('div');
+            element.textContent = input;
+            return element.innerHTML;
+        }
+
+        // URL格式验证
+        function isValidUrl(string) {
+            try {
+                const url = new URL(string);
+                return ['http:', 'https:'].includes(url.protocol);  // 仅允许 http 和 https
+            } catch (_) {
+                return false;
+            }
+        }
+
+        // 更新分类和链接显示，减少DOM操作
+        function updateUI() {
+            const categoriesDiv = document.getElementById('categories');
+            const categorySelect = document.getElementById('categorySelect');
+            
+            categoriesDiv.innerHTML = '';
+            categorySelect.innerHTML = '<option value="">选择分类</option>';
+
+            // 使用文档片段，减少DOM操作
+            const fragment = document.createDocumentFragment();
+            const selectFragment = document.createDocumentFragment();
+
+            for (var category in categories) {
+                const categoryDiv = document.createElement('div');
+                categoryDiv.classList.add('category');
+                categoryDiv.setAttribute('data-category', category);
+                categoryDiv.setAttribute('role', 'region');
+                categoryDiv.setAttribute('aria-labelledby', `heading-${category}`);
+                
+                const categoryTitle = document.createElement('h2');
+                categoryTitle.classList.add('category-title');
+                categoryTitle.textContent = sanitizeInput(category);
+                categoryTitle.id = `heading-${category}`;
+                categoryDiv.appendChild(categoryTitle);
+
+                const linkList = document.createElement('ul');
+                linkList.classList.add('link-list');
+                categories[category].forEach((link, index) => {
+                    const listItem = document.createElement('li');
+                    
+                    const linkElement = document.createElement('a');
+                    linkElement.href = sanitizeInput(link.url);
+                    linkElement.textContent = sanitizeInput(link.name);
+                    linkElement.target = '_blank';
+                    linkElement.setAttribute('rel', 'noopener noreferrer');  // 增强安全性
+
+                    const deleteButton = document.createElement('button');
+                    deleteButton.textContent = '删除';
+                    deleteButton.onclick = function() {
+                        deleteLink(category, index);
+                    };
+
+                    listItem.appendChild(linkElement);
+                    listItem.appendChild(deleteButton);
+                    linkList.appendChild(listItem);
+                });
+                categoryDiv.appendChild(linkList);
+                fragment.appendChild(categoryDiv);
+
+                // 更新分类选择项
+                const option = document.createElement('option');
+                option.value = category;
+                option.textContent = sanitizeInput(category);
+                selectFragment.appendChild(option);
+            }
+
+            categoriesDiv.appendChild(fragment);
+            categorySelect.appendChild(selectFragment);
+
+            localStorage.setItem('categories', JSON.stringify(categories));
+        }
+
+        // 添加网站链接
+        document.getElementById('addForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const linkName = sanitizeInput(document.getElementById('linkName').value.trim());
+            const linkUrl = document.getElementById('linkUrl').value.trim();
+            const category = document.getElementById('categorySelect').value;
+
+            if (category && linkName && isValidUrl(linkUrl)) {
+                if (!categories[category]) {
+                    categories[category] = [];
+                }
+                categories[category].push({ name: linkName, url: linkUrl });
+                updateUI();
+                e.target.reset();
+                alert('网站已成功添加！');
+            } else {
+                alert('请确保所有字段填写正确，且URL格式有效！');
+            }
+        });
+
+        // 添加新分类
+        document.getElementById('addCategoryForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const categoryName = sanitizeInput(document.getElementById('categoryName').value.trim());
+
+            if (categoryName && !categories[categoryName]) {
+                categories[categoryName] = [];
+                updateUI();
+                e.target.reset();
+                alert('分类已成功添加！');
+            } else {
+                alert('请确保分类名称有效且不重复！');
+            }
+        });
+
+        // 删除链接
+        function deleteLink(category, index) {
+            categories[category].splice(index, 1);
+            if (categories[category].length === 0) {
+                delete categories[category];
+            }
+            updateUI();
+            alert('链接已成功删除！');
+        }
+
+        // 初始化页面
+        updateUI();
+    </script>
+</body>
+</html>
